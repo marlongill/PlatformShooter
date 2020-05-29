@@ -22,10 +22,20 @@ namespace Actor
 	class Player : public ActorBase
 	{
 	private:
+		const float WALK_SPEED = 48.0f;
+		const float JOG_SPEED = 96.0f;
+		const float RUN_SPEED = 144.0f;
+
+		enum class PlayerState { Idle, Walking, Jogging, Running, Jumping, Falling };
+
 		Poly::Polygon _polyBelow;
 		Poly::line2d _edgeBelow;
 		FacingDirection _direction = FacingDirection::RIGHT;
 		RotationPoint rotationPoint;
+		
+		PlayerState _state = PlayerState::Idle;
+		float _xInputHeld = 0.0f;
+		float _xSpeed = 0.0f;
 
 	private:
 		bool TooSteep(bool left, Poly::line2d line);
@@ -42,10 +52,10 @@ namespace Actor
 
 		void SetMaxSpeed(float s);
 
-		void Update(Assets::Map* map, float timeElapsed) override;
+		bool Update(Assets::Map* map, float timeElapsed) override;
 		void Render(Assets::Map* map) override;
 
-		void Jump();
+		void Jump(float timeElapsed);
 		void Land();
 		void Float();
 

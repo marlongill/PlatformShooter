@@ -20,6 +20,8 @@ namespace Actor
 
 		olc::vf2d _velocity = { 0.0f, 0.0f };
 		olc::vf2d _fineCoords = { 0.0f, 0.0f };
+		olc::vi2d _worldCoords = { 0, 0 };
+
 		float _rotation;
 		olc::vf2d _rotationAxis = { 0.0f, 0.0f };
 
@@ -58,7 +60,7 @@ namespace Actor
 
 	// Internal Methods
 	protected:
-		void InternalUpdate(float timeElapsed);
+		bool InternalUpdate(float timeElapsed);
 		void InternalRender(Assets::Map* map);
 
 	// Public Methods
@@ -71,7 +73,7 @@ namespace Actor
 
 		void Animate(float timeElapsed);
 
-		virtual void Update(Assets::Map* map, float timeElapsed) = 0;
+		virtual bool Update(Assets::Map* map, float timeElapsed) = 0;
 		virtual void Render(Assets::Map* map) = 0;
 
 		int CheckFaceCollisions(Assets::Map* map, Poly::Polygon* playerPoly, olc::vf2d worldCoords, Poly::FACE face, float elapsedTime);
@@ -85,7 +87,7 @@ namespace Actor
 		Enemy();
 		Enemy(std::string decalName, olc::PixelGameEngine* p, olc::Pixel tint = olc::WHITE);
 		~Enemy();
-		void Update(Assets::Map* map, float timeElapsed) override;
+		bool Update(Assets::Map* map, float timeElapsed) override;
 		void Render(Assets::Map* map) override;
 	};
 	
@@ -95,7 +97,7 @@ namespace Actor
 		Projectile();
 		Projectile(std::string decalName, olc::PixelGameEngine* p, olc::Pixel tint = olc::WHITE);
 		~Projectile();
-		void Update(Assets::Map* map, float timeElapsed) override;
+		bool Update(Assets::Map* map, float timeElapsed) override;
 		void Render(Assets::Map* map) override;
 	};
 }

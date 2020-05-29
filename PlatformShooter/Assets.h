@@ -8,6 +8,8 @@
 // Assets
 namespace Assets
 {
+	enum class PAKFileType { SpriteSheet, Map };
+
 	struct TileAttributes
 	{
 		bool IsSolid = false;
@@ -66,8 +68,9 @@ namespace Assets
 	private:
 		olc::Decal* TileSheet;
 		olc::PixelGameEngine* pge;
-		MapCell *Cells;
+		std::vector<MapCell> Cells;
 		SpriteData* TileSheetData;
+		std::vector<Poly::Polygon> Masks;
 
 	public:
 		int TileWidth, TileHeight;
@@ -81,8 +84,11 @@ namespace Assets
 		Map();
 		~Map();
 
-		bool Create(std::string mapName, std::string mapFile, std::string tileSheetName, olc::PixelGameEngine* p);
+		bool Create(SpriteData* sd, int mapWidth, int mapHeight, olc::PixelGameEngine* p);
 
+		void SetMaskCount(int maskCount);
+		void AddMask(int index, Poly::Polygon poly);
+		void SetTileInfo(int index, MapCell cell);
 		MapCell GetTileInfo(int x, int y);
 		MapCell GetTileInfo(olc::vi2d mapRef);
 		MapCell GetTileInfoWorldCoord(olc::vf2d coords);
@@ -91,6 +97,8 @@ namespace Assets
 
 		olc::vi2d WorldCoordToMapRef(olc::vi2d worldCoords);
 		olc::vf2d MapRefToWorldCoord(olc::vi2d mapRef);
+
+		Poly::line2d GetIntersectingMaskFace(Poly::line2d l);
 
 		int WorldWidth();
 		int WorldHeight();
@@ -128,9 +136,7 @@ namespace Assets
 		std::string ReadStringFromStream(std::ifstream& stream);
 
 	public:
-		void LoadSpriteSheet(std::string spriteSheetName, bool createDecal);
-		void LoadSpriteSheetFromPAK(std::string spriteSheetName, bool createDecal);
-		void LoadMap(std::string mapName, std::string tileSheetName, olc::PixelGameEngine* pge);
+		void LoadPAKFile(PAKFileType fileType, std::string pakFileName, bool createDecal, olc::PixelGameEngine* pge);
 
 		SpriteData* GetSpriteData(std::string spriteName);
 		olc::Sprite* GetSprite(std::string spriteName);

@@ -12,9 +12,9 @@ namespace Actor
 	{
 	}
 
-	void Projectile::Update(Assets::Map* map, float timeElapsed)
+	bool Projectile::Update(Assets::Map* map, float timeElapsed)
 	{
-		ActorBase::InternalUpdate(timeElapsed);
+		return ActorBase::InternalUpdate(timeElapsed);
 	}
 	
 	void Projectile::Render(Assets::Map* map)

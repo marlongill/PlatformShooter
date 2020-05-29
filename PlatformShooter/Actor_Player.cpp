@@ -1,3 +1,4 @@
+#define SHOW_COLLISION_DATA
 
 #include "Actor_Player.h"
 
@@ -14,14 +15,16 @@ namespace Actor
 	{
 	}
 
-	void Player::Update(Assets::Map* map, float timeElapsed)
+	bool Player::Update(Assets::Map* map, float timeElapsed)
 	{
-		Animate(timeElapsed);
+		bool checkCollisions = InternalUpdate(timeElapsed);
 
 		if (_fineCoords.x < 0) { _fineCoords.x = 0; _velocity.x = 0; }
 		if (_fineCoords.x > map->WorldWidth() - _spriteWidth) { _fineCoords.x = map->WorldWidth() - _spriteWidth; _velocity.x = 0; }
 		if (_fineCoords.y < 0) { _fineCoords.y = 0; _velocity.y = 0; }
 		if (_fineCoords.y > map->WorldHeight() - _spriteHeight) { _fineCoords.y = map->WorldHeight() - _spriteHeight; _velocity.y = 0; }
+
+		return checkCollisions;
 	}
 	
 	void Player::Render(Assets::Map* map)
@@ -31,14 +34,15 @@ namespace Actor
 
 	void Player::SetMaxSpeed(float s) { _props->MaxSpeed = s; }
 
-	void Player::Jump()
+	void Player::Jump(float timeElapsed)
 	{
 		if (_props->CanJump) {
-			_velocity.y = -1.25f;
+			_state = PlayerState::Jumping;
+			_velocity.y = -4.5f;
 			_props->CanJump = false;
 			_props->OnGround = false;
 			SetRotation(0);
-			if (_velocity.x >= 0)
+			if (_direction == FacingDirection::RIGHT)
 				SetAnimation("Jump Right");
 			else
 				SetAnimation("Jump Left");
@@ -47,15 +51,28 @@ namespace Actor
 
 	void Player::Land()
 	{
-		_props->OnGround = true;
-		_props->CanJump = true;
-		_velocity.y = 0;
-		if (_velocity.x > 0)
-			SetAnimation("Jog Right");
-		else if (_velocity.x < 0)
-			SetAnimation("Jog Left");
-		else
-			SetAnimation(_direction == FacingDirection::LEFT ? "Idle Left" : "Idle Right");
+		if (!_props->OnGround) {
+			_props->OnGround = true;
+			_props->CanJump = true;
+			_velocity.y = 0;
+			
+			if (_velocity.x == 0) {
+				SetAnimation(_direction == FacingDirection::LEFT ? "Idle Left" : "Idle Right");
+				_state = PlayerState::Idle;
+			}
+			else if (_xSpeed == RUN_SPEED) {
+				SetAnimation(_direction == FacingDirection::LEFT ? "Run Left" : "Run Right");
+				_state = PlayerState::Running;
+			}
+			else if (_xSpeed == JOG_SPEED) {
+				SetAnimation(_direction == FacingDirection::LEFT ? "Jog Left" : "Jog Right");
+				_state = PlayerState::Jogging;
+			}
+			else if (_xSpeed == WALK_SPEED) {
+				SetAnimation(_direction == FacingDirection::LEFT ? "Run Left" : "Run Right");
+				_state = PlayerState::Walking;
+			}
+		}
 	}
 
 	void Player::Float()
@@ -66,47 +83,56 @@ namespace Actor
 	
 	void Player::HandleInput(float timeElapsed)
 	{
-		// When on a slope with reduced friction, we need to add the acceleration of the slope
-		float acceleration = _props->MaxSpeed;// *(1.0f - (1.0f - _cellBelow.cell.Friction));
-		acceleration *= timeElapsed ;
-		acceleration *= (_props->OnGround ? 1.0f : 0.5f);
-		
+		if (_state == PlayerState::Jumping || _state == PlayerState::Falling)
+		{
+			_velocity.x = _xSpeed * timeElapsed * (_direction == FacingDirection::LEFT ? -1.0f : 1.0f);
+			return;
+		}
+
+		_xInputHeld += timeElapsed;
+
 		bool movementKeyPressed = false;
 
 		bool left = _pge->GetKey(olc::LEFT).bHeld;
 		bool right = _pge->GetKey(olc::RIGHT).bHeld;
 		bool jump = _pge->GetKey(olc::SPACE).bHeld;
 
-		if (left) {
-			if (_acceptXInput) {
-				_direction = FacingDirection::LEFT;
+		if (left || right) {
+			if (_acceptXInput && _props->OnGround) {
 
-				if (_props->OnGround && _animation->GetCurrentAnimation() != "Jog Left")
-					SetAnimation("Jog Left");
+				if ((_direction == FacingDirection::RIGHT && left)
+					|| (_direction == FacingDirection::LEFT && right)
+					|| _velocity.x == 0) {
 
-				if (_velocity.x > -_props->MaxSpeed)
-					_velocity.x -= acceleration;
+					_direction = left ? FacingDirection::LEFT : FacingDirection::RIGHT;
+					_xInputHeld = 0.0;
+					SetAnimation(left ? "Walk Left" : "Walk Right");
+					_xSpeed = WALK_SPEED;
+					_state = PlayerState::Walking;
+				}
+
+				if (_xInputHeld > 0.4f)
+				{
+					if (_xSpeed == WALK_SPEED) {
+						_xInputHeld -= 0.4f;
+						SetAnimation(_direction == FacingDirection::LEFT ? "Jog Left" : "Jog Right");
+						_xSpeed = JOG_SPEED;
+						_state = PlayerState::Jogging;
+					}
+					else if (_xSpeed = JOG_SPEED) {
+						_xInputHeld -= 0.4f;
+						SetAnimation(_direction == FacingDirection::LEFT ? "Run Left" : "Run Right");
+						_xSpeed = RUN_SPEED;
+					}
+				}
+
+				_velocity.x = _xSpeed * timeElapsed * (left ? -1.0f : 1.0f);
 			}
 			movementKeyPressed = true;
 		}
 
-		if (right) {
-			if (_acceptXInput) {
-				_direction = FacingDirection::RIGHT;
-
-				if (_props->OnGround && _animation->GetCurrentAnimation() != "Jog Right")
-					SetAnimation("Jog Right");
-
-				if (_velocity.x < _props->MaxSpeed)
-					_velocity.x += acceleration;
-			}
-			movementKeyPressed = true;
-		}
-
-		if (jump && _props->CanJump) {
-			Jump();
-			movementKeyPressed = true;
-		}
+		if (jump)
+			Jump(timeElapsed);
 
 		if (!(left || right || jump)) {
 
@@ -114,12 +140,17 @@ namespace Actor
 			_acceptXInput = true;
 
 			if (_velocity.x != 0) {
-				int ix = round(_velocity.x * 10000);
-				if (ix == 0) {
-					_velocity.x = 0;
-					SetAnimation(_direction == FacingDirection::LEFT ? "Idle Left" : "Idle Right");
+				// Round off our x velocity and stop if very, very small - Makes sure we don't constantly move
+				if (_velocity.x != 0)
+				{
+					int ix = round(_velocity.x * 10000);
+					if (ix == 0) {
+						_velocity.x = 0;
+						SetAnimation(_direction == FacingDirection::LEFT ? "Idle Left" : "Idle Right");
+					}
 				}
 			}
+
 			if (_velocity.y != 0) {
 				int iy = round(_velocity.y * 10000);
 				if (iy == 0) {
@@ -128,46 +159,63 @@ namespace Actor
 				}
 			}
 
-			// Determine deceleration
-			float deceleration;
-			if (!_props->OnGround)
-				deceleration = acceleration / 2.0f;
-			else if (abs(_cellBelow.topEdge.m) > 1.1)
-				deceleration = 0.0f;
-			else if (_cellBelow.cell.Friction == 1.0f)
-				deceleration = abs(_velocity.x);
-			else
-			{
-				deceleration = (1.0f - _cellBelow.cell.Friction) * acceleration;
-			}
+			// Determine deceleration and apply to our x velocity
+			if (_velocity.x != 0) {
+				float deceleration;
+				//if (!_props->OnGround)
+				//	deceleration = (_xSpeed / 2) * timeElapsed;
+				//else 
+				if (abs(_cellBelow.topEdge.m) > 1.1)
+					deceleration = 0.0f;
+				else if (_cellBelow.cell.Friction == 1.0f) {
+					deceleration = abs(_velocity.x);
+					SetAnimation(_direction == FacingDirection::LEFT ? "Idle Left" : "Idle Right");
+				}
+				else
+				{
+					deceleration = (1.0f - _cellBelow.cell.Friction) * ((_xSpeed / 2) * timeElapsed);
+				}
 
-			if (_velocity.x < 0) {
-				float v = _velocity.x + deceleration;
-				_velocity.x = v > 0 ? 0.0f : v;
-			}
-			else if (_velocity.x > 0)
-			{
-				float v = _velocity.x - deceleration;
-				_velocity.x = v < 0 ? 0.0f : v;
-			}
+				if (_velocity.x < 0) {
+					float v = _velocity.x + deceleration;
+					if (v > 0) {
+						_velocity.x = 0;
+						_xSpeed = 0;
+					}
+					else {
+						_velocity.x = v;
+					}
+				}
+				else if (_velocity.x > 0)
+				{
+					float v = _velocity.x - deceleration;
+					if (v < 0) {
+						_velocity.x = 0;
+						_xSpeed = 0;
+					}
+					else {
+						_velocity.x = v;
+					}
+				}
 
-			// Minimum velocity is based on the slope and friction of the cell below
-			// us when we are not on level ground
-			float minv = _props->MaxSpeed * _cellBelow.topEdge.m;
-			minv *= (1.0f - _cellBelow.cell.Friction);
+				// Minimum velocity is based on the slope and friction of the cell below
+				// us when we are not on level ground
+				float minv = _props->MaxSpeed * _cellBelow.topEdge.m;
+				minv *= (1.0f - _cellBelow.cell.Friction);
 
-			if (_velocity.x == 0 && _props->OnGround)
-				_velocity.x = minv;
-			else if (_velocity.x < 0 && _props->OnGround && minv < 0)
-				_velocity.x = std::min(minv, _velocity.x);
-			else if (_velocity.x > 0 && _props->OnGround && minv > 0)
-				_velocity.x = std::max(minv, _velocity.x);
+				if (_velocity.x == 0 && _props->OnGround)
+					_velocity.x = minv;
+				else if (_velocity.x < 0 && _props->OnGround && minv < 0)
+					_velocity.x = std::min(minv, _velocity.x);
+				else if (_velocity.x > 0 && _props->OnGround && minv > 0)
+					_velocity.x = std::max(minv, _velocity.x);
+			}
 		}
 
 		if (_pge->GetKey(olc::ESCAPE).bPressed)
 		{
 			_velocity = { 0, 0 };
-			_fineCoords = { 1216, 1068 };
+			SetWorldCoords({ 1068, 1069 });
 		}
 	}
 
@@ -179,7 +227,7 @@ namespace Actor
 
 	void Player::CheckAboveCharacter(Assets::Map* map)
 	{
-		if (_velocity.y > 0)
+		if (_velocity.y >= 0)
 			return;
 
 		Poly::Polygon objPoly = _spriteData->PolyMasks[_animation->GetCurrentSprite()];
@@ -191,49 +239,54 @@ namespace Actor
 		);
 
 		std::vector<Poly::line2d> rays = objPoly.GetUpCheckRays(signbit(_velocity.x));
-		std::vector<float> dy = { 100,100,100 };
+		std::vector<float> dy = { -100, -100, -100 };
 
 		// Check intersection with these rays and the bottom faces of the target cells in the y direction
+		Poly::line2d checkFace;
+		int maxY = -INFINITY;
 		for (int x = 0; x < 3; x++)
 		{
-			int cellX = (int)(floor(rays[x].start.x / map->TileWidth));
-			int cellY = (int)(floor(rays[x].Midpoint().y / map->TileWidth));
-
-			// Check Current Cell - if not solid get the one below it
-			Assets::MapCell checkCell = map->GetTileInfo(cellX, cellY);
-			if (!checkCell.IsSolid) {
-				cellY++;
-				checkCell = map->GetTileInfo(cellX, cellY);
+			// Get Face of Check Polygon from Map Masks
+			if (x == 0) {
+				checkFace = map->GetIntersectingMaskFace(rays[0]);
+			}
+			else {
+				if (rays[x].start.x < checkFace.start.x || rays[x].start.x > checkFace.end.x)
+					checkFace = map->GetIntersectingMaskFace(rays[x]);
 			}
 
-			// Get polygon for check cell - and update to world position
-			Poly::Polygon checkPoly = map->GetPolygon(cellX, cellY);
-			checkPoly.SetPosition(cellX * map->TileWidth, cellY * map->TileHeight);
-
-			// Does the polygon have any edges?
-			if (checkPoly.GetEdgeCount() > 0)
+			if (checkFace.start.x != -INFINITY)
 			{
-				// Get the top edge of the target polygon
-				Poly::line2d checkEdge = checkPoly.GetEdge(Poly::EDGETYPE::BOTTOM, Poly::COORDTYPE::TRANSLATED).line;
-
 				// Get intersection between the current check ray and the bottom face of the target polygon
 				try {
-					Poly::vec2d ix = rays[x].Intersect(checkEdge);
+					Poly::vec2d ix = rays[x].Intersect(checkFace);
+
 					// Intersect distance is the y coord of the intersection minus the midpoint of
 					// our check polygon (which is the y coordinate of the bottom face)
-					dy[x] = abs(ix.y - rays[x].Midpoint().y);
+					maxY = std::max(ix.y, (float)maxY);
+					dy[x] = ix.y - rays[x].Midpoint().y;
 				}
 				catch (Poly::InvalidIntersect)
 				{
 					// Set the intersect distance for this ray to be out of bounds for our range checking
-					dy[x] = 100;
+					dy[x] = -100;
 				}
 			}
 		}
 
-		if (dy[0] <= 1 || dy[1] <= 1 || dy[2] <= 1 )
+		if (dy[0] >= -1 || dy[1] >= -1 || dy[2] >= -1)
+		{
 			_velocity.y = 0;
-		_fineCoords.y += _velocity.y;
+
+			int fallingSpriteID = _spriteData->Animations[_direction == Actor::FacingDirection::LEFT ? "Fall Left" : "Fall Right"].Frames[0];
+			Poly::Polygon adjustMask = _spriteData->PolyMasks[fallingSpriteID];
+			adjustMask.SetPosition(objPoly.GetPosition().x, objPoly.GetPosition().y, 0.0f, { 0, 0 });
+			Poly::Edge adjustEdge = adjustMask.GetEdge(Poly::FACE::TOP);
+
+			_fineCoords.y = (adjustEdge.line.start.y - _fineCoords.y) + maxY;
+		}
+		else
+			_fineCoords.y += _velocity.y;
 
 #ifdef SHOW_COLLISION_DATA
 		_pge->SetDrawTarget(nullptr);
@@ -556,8 +609,6 @@ namespace Actor
 
 	void Player::HandleCollisions(Assets::Map* map, float timeElapsed)
 	{
-		// Check below the character first using rays cast downards from the bottom left corner, bottom right corner
-		// and center of bottom face.
 		CheckAboveCharacter(map);
 		CheckBelowCharacter(map);
 		CheckHorizontalCollisions(map);

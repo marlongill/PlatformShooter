@@ -13,9 +13,9 @@ namespace Actor
 	{
 	}
 
-	void Enemy::Update(Assets::Map* map, float timeElapsed)
+	bool Enemy::Update(Assets::Map* map, float timeElapsed)
 	{
-		ActorBase::InternalUpdate(timeElapsed);
+		return ActorBase::InternalUpdate(timeElapsed);
 	}
 
 	void Enemy::Render(Assets::Map* map)

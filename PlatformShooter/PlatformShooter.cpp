@@ -22,7 +22,7 @@ namespace PlatformShooter
 	{
 		sAppName = "Platform Shooter Demo";
 		// FPS Limiter
-		Gravity = 4.0f; // One cell is 1m
+		Gravity = 2.5f; // One cell is 1m
 
 		// Default Layer is Text
 		SetDrawTarget(LYR_TEXT);
@@ -47,13 +47,13 @@ namespace PlatformShooter
 		LoadResources();
 
 		// Text Renderer 
-		Text = Text::TextRenderer(32, 111, "Typeface", this);
+		Text = Text::TextRenderer(32, 111, "Text", this);
 
 		// Variable Initialisation
-		CurrentMap = Assets::Assets::get().GetMap("TestMap");
+		CurrentMap = Assets::Assets::get().GetMap("Map");
 		CurrentMap->SetGravity(Gravity);
 
-		Player = new Actor::Player("Player2", this, olc::WHITE);
+		Player = new Actor::Player("Player", this, olc::WHITE);
 
 		Player->SetAnimation("Idle Right");
 		Player->Activate();
@@ -149,12 +149,14 @@ namespace PlatformShooter
 			Player->Float();
 		}
 #endif
-
-		Player->ApplyGravity(CurrentMap, timeElapsed);
-		Player->HandleCollisions(CurrentMap, timeElapsed);
-
+		
 		// Update the player in the world
-		Player->Update(CurrentMap, timeElapsed);
+		Player->ApplyGravity(CurrentMap, timeElapsed);
+		bool checkCollisions = Player->Update(CurrentMap, timeElapsed);
+		
+		if (checkCollisions)
+			Player->HandleCollisions(CurrentMap, timeElapsed);
+
 		
 		// Update Viewport
 		CurrentMap->CenterOnPoint(Player->GetWorldCoords());

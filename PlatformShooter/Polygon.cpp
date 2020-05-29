@@ -69,7 +69,6 @@ namespace Poly
 				{
 						result = { l1.start.x, std::max(l1.start.y, l2.start.y) };
 				}
-				else return result; // Parallel Cannot Converge
 			}
 			if (l1HV != LINETYPE::DIAGONAL && l2HV != LINETYPE::DIAGONAL) // One Vertical, One Horizontal
 			{
@@ -340,7 +339,7 @@ namespace Poly
 		std::vector<line2d> result;
 
 		line2d e;
-		int maskHeight = _aabb.br.y -_aabb.tl.y;
+		int maskHeight = (_aabb.br.y -_aabb.tl.y) * 0.75f;
 		if (up)
 			e = FindEdge(EDGETYPE::TOP, COORDTYPE::ROTATED).line;
 		else

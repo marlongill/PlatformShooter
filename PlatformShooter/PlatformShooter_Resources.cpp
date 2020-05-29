@@ -8,26 +8,19 @@ namespace PlatformShooter
     bool PlatformShooterDemo::LoadResources()
     {
         // Load Sprite Sheets
-        auto LoadSpriteSheetFromPAK = [&](std::string PAKFileName, bool createDecal)
+        auto LoadSpriteSheetPAK = [&](std::string spriteSheetName, bool createDecal)
         {
-            Assets::Assets::get().LoadSpriteSheetFromPAK(PAKFileName, createDecal);
-        };
-
-        auto LoadSpriteSheet = [&](std::string spriteSheetName, bool createDecal)
-        {
-            Assets::Assets::get().LoadSpriteSheet(spriteSheetName, createDecal);
+            Assets::Assets::get().LoadPAKFile(Assets::PAKFileType::SpriteSheet, spriteSheetName, createDecal, this);
         };
         
-        auto LoadMap = [&](std::string mapName, std::string tileSheetName, olc::PixelGameEngine* pge)
+        auto LoadMapPAK = [&](std::string mapName, bool createDecal)
         {
-            Assets::Assets::get().LoadMap(mapName, tileSheetName, pge);
+            Assets::Assets::get().LoadPAKFile(Assets::PAKFileType::Map, mapName, createDecal, this);
         };
 
-        LoadSpriteSheetFromPAK("Player2", true);
-        LoadSpriteSheet("TestTile", true);
-        LoadSpriteSheet("Typeface", true);
-        //LoadSpriteSheet("Player", true);
-        LoadMap("TestMap", "TestTile", this);
+        LoadSpriteSheetPAK("Player", true);
+        LoadMapPAK("Map", true);
+        LoadSpriteSheetPAK("Text", true);
 
         return true;
     }

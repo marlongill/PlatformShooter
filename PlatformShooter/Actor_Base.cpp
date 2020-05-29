@@ -35,14 +35,14 @@ namespace Actor
 	}
 
 	// Getters 
-	olc::vi2d ActorBase::GetWorldCoords() { return olc::vi2d((int)floor(_fineCoords.x), (int)floor(_fineCoords.y)); }
+	olc::vi2d ActorBase::GetWorldCoords() { return _worldCoords; }
 	olc::vf2d ActorBase::GetVelocity() { return _velocity; }
 	AnimationControl* ActorBase::GetAnimation() { return _animation; }
 	Properties* ActorBase::GetProperties() { return _props;	}
 	olc::vi2d ActorBase::GetSpriteSize() { return { _spriteWidth, _spriteHeight }; }
 
 	// Setters
-	void ActorBase::SetWorldCoords(olc::vi2d coords) { _fineCoords = coords; }
+	void ActorBase::SetWorldCoords(olc::vi2d coords) { _fineCoords = coords; _worldCoords = coords; }
 	void ActorBase::SetVelocity(olc::vf2d velocity) { _velocity = velocity; }
 	void ActorBase::SetAnimation(std::string animationName) {
 		if (_animation->GetCurrentAnimation() != animationName)
@@ -61,12 +61,26 @@ namespace Actor
 	void ActorBase::UpdateCoords(olc::vf2d delta) { _fineCoords += delta; }
 
 	// Internal Methods 
-	void ActorBase::InternalUpdate(float timeElapsed)
+	bool ActorBase::InternalUpdate(float timeElapsed)
 	{
 		_animation->Update(timeElapsed);
-		if (_velocity.x != 0.0 || _velocity.y != 0.0) {
-			_fineCoords += _velocity;
+		bool positionChanged = false;
+
+		if (_velocity.x != 0) {
+			int ox = _worldCoords.x;
+			_fineCoords.x += _velocity.x;
+			_worldCoords.x = _velocity.x < 0 ? floor(_fineCoords.x) : ceil(_fineCoords.x);
+			positionChanged |= _worldCoords.x != ox;
 		}
+		
+		if (_velocity.y != 0) {
+			int oy = _worldCoords.y;
+			_fineCoords.y += _velocity.y;
+			_worldCoords.y = _velocity.y < 0 ? floor(_fineCoords.y) : ceil(_fineCoords.y);
+			positionChanged |= _worldCoords.x != oy;
+		}
+
+		return positionChanged;
 	}
 
 	void ActorBase::InternalRender(Assets::Map* map)
@@ -143,7 +157,12 @@ namespace Actor
 	olc::vf2d ActorBase::ApplyGravity(Assets::Map* map, float timeElapsed)
 	{ 
 		if (_props->ApplyGravity && (!_props->OnGround || _props->SlidingDownSlope))
-			_velocity.y += map->Gravity * timeElapsed;
+		{
+			if (_velocity.y < 0)
+				_velocity.y += (map->Gravity * timeElapsed * 2);
+			else
+				_velocity.y = std::min(_velocity.y + map->Gravity * timeElapsed, 3.0f);
+		}
 		return _velocity;
 	}
 
